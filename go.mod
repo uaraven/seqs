@@ -1,4 +1,4 @@
-module iters
+module seqs
 
 go 1.20
 

@@ -8,6 +8,8 @@ type Producer[T any] func() Option[T]
 
 type Consumer[T any] func(value T)
 
+type Provider[T any] func() T
+
 type Comparator[T any] func(t1 T, t2 T) int
 
 type Predicate[T any] func(value T) bool
