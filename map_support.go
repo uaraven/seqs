@@ -73,6 +73,10 @@ func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U]
 						return NoneOf[U]()
 					}
 				}
+				if chunk == nil {
+					chunkValid = false
+					continue
+				}
 				u, ok := chunk.Next()
 				if ok {
 					return SomeOf(u)
@@ -96,10 +100,12 @@ func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 			v, ok := input.Next()
 			for ok {
 				u := mapper(v)
-				u1, ok1 := u.Next()
-				for ok1 {
-					output <- u1
-					u1, ok1 = u.Next()
+				if u != nil {
+					u1, ok1 := u.Next()
+					for ok1 {
+						output <- u1
+						u1, ok1 = u.Next()
+					}
 				}
 				v, ok = input.Next()
 			}

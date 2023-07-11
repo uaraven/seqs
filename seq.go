@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// Seq is the sequence of elements supporting sequential and parallel aggregate operations
 type Seq[T any] interface {
 	Parallelism() int
 	Filter(test Predicate[T]) Seq[T]
@@ -22,12 +23,42 @@ type ProducerSeq[T any] struct {
 	parallelism int
 }
 
+// NewSeq creates a new sequence that executes operations sequentially
 func NewSeq[T any](producer Producer[T]) *ProducerSeq[T] {
 	return &ProducerSeq[T]{producer: producer, parallelism: 1}
 }
 
-// NewParallelSeq creates a new Seq with a provided producer and the parallelism level
-// If parallelism level is not specified, the number of CPUs will be used.
+// NewSeqFromSlice creates a new sequence from the given slice
+//
+// If optional parallelism value is provided and it is higher than 1, then the created Seq will perform operations in parallel.
+func NewSeqFromSlice[T any](source []T, parallelism ...int) *ProducerSeq[T] {
+	return NewParallelSeq(NewSliceProducer(source), parallelism...)
+}
+
+func NewSeqFromMapKeys[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[K] {
+	keyChan := make(chan K)
+	go func() {
+		for k := range source {
+			keyChan <- k
+		}
+		close(keyChan)
+	}()
+	return NewParallelSeq(NewChannelProducer(keyChan), parallelism...)
+}
+
+func NewSeqFromMapValues[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[V] {
+	valChan := make(chan V)
+	go func() {
+		for _, v := range source {
+			valChan <- v
+		}
+		close(valChan)
+	}()
+	return NewParallelSeq(NewChannelProducer(valChan), parallelism...)
+}
+
+// NewParallelSeq creates a new Seq that will execute operations in parallel manner.
+// If parallelism level is not specified, then the parallelism will be set to the number of CPUs.
 //
 // All operations on the Seq will be performed in parallel. Ordering of elements in the
 // resulting Seq is not guaranteed
@@ -36,6 +67,9 @@ func NewSeq[T any](producer Producer[T]) *ProducerSeq[T] {
 func NewParallelSeq[T any](producer Producer[T], parallelism ...int) *ProducerSeq[T] {
 	if len(parallelism) == 0 {
 		parallelism = []int{runtime.NumCPU()}
+	}
+	if parallelism[0] <= 0 {
+		parallelism[0] = 1
 	}
 	return &ProducerSeq[T]{producer: producer, parallelism: parallelism[0]}
 }
@@ -190,8 +224,9 @@ func (t ProducerSeq[T]) Reduce(reducer func(a T, b T) T) T {
 	return result
 }
 
-// Map maps Seq elements using a mapper function. Map returns a new Seq and performs the transformation
-// lazily.
+// Map returns a Seq consisting of the results of applying the given mapping function to the elements for the provided input sequence
+//
+// Map returns a new Seq and performs the transformation lazily.
 func Map[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	if input.Parallelism() <= 1 {
 		return sequentialMap(input, mapper)
@@ -200,7 +235,12 @@ func Map[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	}
 }
 
-// FlatMap
+// FlatMap returns a sequence consisting of the results of replacing each element of the provided input sequence with
+// the contents of a mapped sequence produced by applying the provided mapping function to each element.
+//
+// If a mapped sequence is nil an empty stream is used, instead.
+//
+// FlatMap returns a new Seq and performs the transformation lazily.
 func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 	if input.Parallelism() <= 1 {
 		return sequentialFlatMap(input, mapper)

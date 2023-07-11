@@ -93,6 +93,29 @@ func TestFlatMap(t *testing.T) {
 	}))
 }
 
+func TestFlatMapWithNilMap(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	superSlice := [][]int{
+		{0, 1, 2, 3},
+		{4, 5, 6},
+		{7, 8},
+		{},
+		{9},
+	}
+	seq := NewSeq[[]int](NewSliceProducer(superSlice))
+	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+		if len(t) == 0 {
+			return nil
+		}
+		return NewSeq[int](NewSliceProducer[int](t))
+	})
+	result := flatMap.ToSlice()
+	g.Expect(result).To(BeEquivalentTo([]int{
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+	}))
+}
+
 func TestParallelFlatMap(t *testing.T) {
 	g := NewGomegaWithT(t)
 
@@ -104,6 +127,31 @@ func TestParallelFlatMap(t *testing.T) {
 	}
 	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
 	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+		return NewSeq[int](NewSliceProducer[int](t))
+	})
+	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
+		return t1 - t2
+	})
+	g.Expect(result).To(BeEquivalentTo([]int{
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+	}))
+}
+
+func TestParallelFlatMapWithNilMap(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	superSlice := [][]int{
+		{0, 1, 2, 3},
+		{4, 5, 6},
+		{7, 8},
+		{},
+		{9},
+	}
+	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
+	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+		if len(t) == 0 {
+			return nil
+		}
 		return NewSeq[int](NewSliceProducer[int](t))
 	})
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
@@ -176,7 +224,32 @@ func TestProducerSeq_ReduceWithChannelProducer(t *testing.T) {
 	})
 
 	g.Expect(v).To(Equal(1275))
+}
 
+func TestNewSeqFromMapKeys(t *testing.T) {
+	g := NewGomegaWithT(t)
+	src := map[int]string{
+		4: "four",
+		2: "two",
+		1: "one",
+		3: "three",
+	}
+	keys := NewSeqFromMapKeys(src).ToSlice()
+	g.Expect(keys).To(HaveLen(4))
+	g.Expect(keys).To(ContainElements(1, 2, 3, 4))
+}
+
+func TestNewSeqFromMapValues(t *testing.T) {
+	g := NewGomegaWithT(t)
+	src := map[int]string{
+		4: "four",
+		2: "two",
+		1: "one",
+		3: "three",
+	}
+	vals := NewSeqFromMapValues(src).ToSlice()
+	g.Expect(vals).To(HaveLen(4))
+	g.Expect(vals).To(ContainElements("one", "two", "three", "four"))
 }
 
 func makeSlice(n int) []int {
