@@ -415,5 +415,10 @@ func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 
 // TODO:
 // GroupBy
-// Sink(consumer)
+// TakeWhile
+// SkipWhile
+// Partition Seq[T] -> Seq[Seq[T]]
 // SinkToChannel(chan)
+// FindFirst
+// AllMatch
+// AnyMatch
