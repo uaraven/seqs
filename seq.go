@@ -7,7 +7,15 @@ import (
 	"sync/atomic"
 )
 
-// Seq is the sequence of elements supporting sequential and parallel aggregate operations
+// Seq is the sequence of elements supporting sequential and parallel aggregate operations.
+// Operations on sequences are composed into a sequence pipeline. The pipeline consists of a source (which can be a slice,
+// channel or any Producer), zero or more intermediate operations, which transform a sequence into another sequence
+// and a terminal operation, which produces a result or a side effect (such as Count() or ToSlice())
+//
+// Sequences are lazy. Computation on source data is performed only when the terminal operation is initiated and source
+// elements are consumed as needed
+//
+// Functions performing intermediate operations must be side effect-free and must not modify the sequence source
 type Seq[T any] interface {
 	// Parallelism returns the number of goroutines used to perform operations on this Seq pipeline
 	Parallelism() int
@@ -17,18 +25,18 @@ type Seq[T any] interface {
 	// prepared Seq pipeline
 	ToSlice() []T
 	// ToSortedSlice returns a slice of all the elements of this Seq. The elements in the resulting slice will be
-	// ordered according to the provided comparison function
+	// ordered according to the provided comparison function.
 	// This is a terminal operation that will execute the prepared Seq pipeline
 	ToSortedSlice(comparator Comparator[T]) []T
 	// Next returns the next element in this Seq or an zero value of the type T. Second return value is true if
-	// the last call to Next exhausted this Seq
+	// the last call to Next exhausted this Seq.
 	Next() (T, bool)
 	// First returns the fist element of this Seq or None if the Seq is empty
 	First() Option[T]
 	// Rest returns a new Seq containing all the elements of this Seq except for the first one
 	Rest() Seq[T]
 	// Reduce applies provided function to the first two elements of this Seq and then iteratively to the result of
-	// the first reduction and the next element of this Seq until the Seq is exhausted. It returns the result of the
+	// the previous reduction and the next element of this Seq until the Seq is exhausted. It returns the result of the
 	// reduction.
 	// Reduce is a terminal operation
 	Reduce(func(a T, b T) T) T
@@ -404,3 +412,8 @@ func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 		return parallelFlatMap(input, mapper)
 	}
 }
+
+// TODO:
+// GroupBy
+// Sink(consumer)
+// SinkToChannel(chan)
