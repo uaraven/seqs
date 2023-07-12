@@ -76,3 +76,22 @@ func TestMapOptionNone(t *testing.T) {
 	g.Expect(om.OrElse("20")).To(Equal("20"))
 	g.Expect(om.Value()).To(Equal(""))
 }
+
+func TestOptionSomeToSeq(t *testing.T) {
+	g := NewWithT(t)
+
+	o := SomeOf(10)
+	s := o.ToSeq().ToSlice()
+
+	g.Expect(s).To(HaveLen(1))
+	g.Expect(s).To(ContainElements(10))
+}
+
+func TestOptionNoneToSeq(t *testing.T) {
+	g := NewWithT(t)
+
+	o := NoneOf[int]()
+	s := o.ToSeq().ToSlice()
+
+	g.Expect(s).To(HaveLen(0))
+}

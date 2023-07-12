@@ -206,6 +206,17 @@ func TestProducerSeq_Reduce(t *testing.T) {
 	g.Expect(v).To(Equal(1275))
 }
 
+func TestProducerSeq_Accumulate(t *testing.T) {
+	g := NewGomegaWithT(t)
+	slice := []string{"a", "bb", "ccc", "dddd", "eeeee"}
+	seq := NewSeqFromSlice(slice, 4)
+	v := Accumulate[string, int](seq, 0, func(a int, b string) int {
+		return a + len(b)
+	})
+
+	g.Expect(v).To(Equal(15))
+}
+
 func TestProducerSeq_ReduceWithChannelProducer(t *testing.T) {
 	g := NewGomegaWithT(t)
 	slice := makeSlice(51)
@@ -250,6 +261,95 @@ func TestNewSeqFromMapValues(t *testing.T) {
 	vals := NewSeqFromMapValues(src).ToSlice()
 	g.Expect(vals).To(HaveLen(4))
 	g.Expect(vals).To(ContainElements("one", "two", "three", "four"))
+}
+
+func TestProducerSeq_Count(t *testing.T) {
+	g := NewGomegaWithT(t)
+	slice := makeSlice(51)
+	seq := NewParallelSeq(NewSliceProducer(slice), 4)
+	v := seq.Count()
+
+	g.Expect(v).To(Equal(int64(51)))
+}
+
+func TestEmptySeq(t *testing.T) {
+	g := NewGomegaWithT(t)
+	r := EmptySeq[int]().ToSlice()
+
+	g.Expect(r).To(HaveLen(0))
+}
+
+func TestProducerSeq_Peek(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	src := SeqOf(1, 2, 3, 4, 5)
+	dst := make([]int, 0)
+
+	src.Peek(func(value int) {
+		dst = append(dst, value)
+	}).Count()
+
+	g.Expect(dst).To(HaveLen(5))
+	g.Expect(dst).To(ContainElements(1, 2, 3, 4, 5))
+}
+
+func TestProducerSeq_Take(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	res1 := SeqOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).Take(4).ToSlice()
+	g.Expect(res1).To(ContainElements(1, 2, 3, 4))
+
+	res2 := SeqOf(1, 2, 3, 4).Take(6).ToSlice()
+	g.Expect(res2).To(ContainElements(1, 2, 3, 4))
+}
+
+func TestProducerSeq_Skip(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	res1 := SeqOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).Skip(4).ToSlice()
+	g.Expect(res1).To(ContainElements(5, 6, 7, 8, 9, 10))
+
+	res2 := SeqOf(1, 2, 3, 4).Skip(6).ToSlice()
+	g.Expect(res2).To(HaveLen(0))
+
+	res3 := SeqOf(1, 2, 3, 4).Skip(4).ToSlice()
+	g.Expect(res3).To(HaveLen(0))
+}
+
+func TestProducerSeq_Ordered(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	src := NewSeqFromSlice([]int{10, 2, 5, 9, 3, 7, 6, 8, 4, 1}, 4)
+	res := src.Ordered(func(t1 int, t2 int) int {
+		return t1 - t2
+	}).ToSlice()
+
+	g.Expect(res).To(Equal([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+}
+
+func TestProducerSeq_Parallel(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	slice := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	src := NewSeqFromSlice(slice)
+
+	g.Expect(src.ToSlice()).To(Equal(slice))
+
+	psrc := src.Parallel(4)
+
+	g.Expect(psrc.ToSlice()).ToNot(Equal(slice))
+	g.Expect(psrc.Parallelism()).To(Equal(4))
+}
+
+func TestProducerSeq_Sequential(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	slice := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	src := NewSeqFromSlice(slice, 4)
+
+	ssrc := src.Sequential()
+	g.Expect(ssrc.ToSlice()).To(ContainElements(slice))
+	g.Expect(ssrc.Parallelism()).To(Equal(1))
 }
 
 func makeSlice(n int) []int {

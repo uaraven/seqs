@@ -1,6 +1,9 @@
 package seqs
 
 // Option can contain a value. On the other hand it can contain nothing
+//
+// Option interface has two implementations: Some[T] and None[T]. Some contains a value
+// while None is an Option without a value
 type Option[T any] interface {
 	// IsPresent returns true if Option contains a value
 	IsPresent() bool
@@ -21,6 +24,10 @@ type Option[T any] interface {
 	// Apply accepts two functions as a parameters. onPresent is called if the Option contains a value, and
 	// onAbsent is called if the Option is empty
 	Apply(onPresent Consumer[T], onAbsent func())
+
+	// ToSeq converts the Option to a Seq. Resulting Seq will either contain one value, in case of Option containing
+	//a value, or it will be an empty Seq, in case the Option is empty
+	ToSeq() Seq[T]
 }
 
 // SomeOf creates a new Option[T] wrapping a provided value
@@ -54,7 +61,7 @@ func MapOption[T any, U any](option Option[T], mapper func(T) U) Option[U] {
 // onPresent will be applied to a value of a non-empty Option[T]
 // onAbsent will be called if the option argument is an empty Option[T]
 //
-// Both of the functions must return a value of type U and must be free of side-effects
+// Both of the functions must return a value of type U and must be free of side effects
 func ApplyOption[T any, U any](option Option[T], onPresent func(T) U, onAbsent func() U) U {
 	var result U
 	option.Apply(func(value T) {
@@ -65,6 +72,9 @@ func ApplyOption[T any, U any](option Option[T], onPresent func(T) U, onAbsent f
 	return result
 }
 
+// Some is an implementation of Option that contains a value
+//
+// Create new Some[T] using SomeOf() function
 type Some[T any] struct {
 	Option[T]
 	value T
@@ -94,6 +104,13 @@ func (s Some[T]) Apply(onPresent Consumer[T], _ func()) {
 	onPresent(s.value)
 }
 
+func (s Some[T]) ToSeq() Seq[T] {
+	return SeqOf(s.value)
+}
+
+// None is an implementation of Option that contains no value
+//
+// Create new None[T] using NoneOf() function
 type None[T any] struct {
 	Option[T]
 }
@@ -121,4 +138,8 @@ func (n None[T]) IfPresent(Consumer[T]) {
 
 func (n None[T]) Apply(_ Consumer[T], onAbsent func()) {
 	onAbsent()
+}
+
+func (n None[T]) ToSeq() Seq[T] {
+	return EmptySeq[T]()
 }

@@ -3,9 +3,8 @@ package seqs
 import "sync"
 
 func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
-	return ProducerSeq[U]{
-		parallelism: input.Parallelism(),
-		producer: func() Option[U] {
+	return NewParallelSeq[U](
+		func() Option[U] {
 			v, ok := input.Next()
 			if ok {
 				u := mapper(v)
@@ -13,8 +12,8 @@ func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 			} else {
 				return NoneOf[U]()
 			}
-		},
-	}
+		}, input.Parallelism(),
+	)
 }
 
 func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
@@ -40,9 +39,8 @@ func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 		allDone <- true
 	}()
 
-	return ProducerSeq[U]{
-		parallelism: input.Parallelism(),
-		producer: func() Option[U] {
+	return NewParallelSeq(
+		func() Option[U] {
 			for {
 				select {
 				case <-allDone:
@@ -56,16 +54,15 @@ func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 					}
 				}
 			}
-		},
-	}
+		}, input.Parallelism(),
+	)
 }
 
 func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 	chunkSeq := sequentialMap(input, mapper)
 	chunk, chunkValid := chunkSeq.Next()
-	return ProducerSeq[U]{
-		parallelism: input.Parallelism(),
-		producer: func() Option[U] {
+	return NewParallelSeq(
+		func() Option[U] {
 			for {
 				if !chunkValid {
 					chunk, chunkValid = chunkSeq.Next()
@@ -85,8 +82,8 @@ func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U]
 					continue
 				}
 			}
-		},
-	}
+		}, input.Parallelism(),
+	)
 }
 
 func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
@@ -118,22 +115,19 @@ func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 		allDone <- true
 	}()
 
-	return ProducerSeq[U]{
-		parallelism: input.Parallelism(),
-		producer: func() Option[U] {
-			for {
-				select {
-				case <-allDone:
-					close(output)
+	return NewParallelSeq(func() Option[U] {
+		for {
+			select {
+			case <-allDone:
+				close(output)
+				return NoneOf[U]()
+			case u, ok := <-output:
+				if ok {
+					return SomeOf(u)
+				} else {
 					return NoneOf[U]()
-				case u, ok := <-output:
-					if ok {
-						return SomeOf(u)
-					} else {
-						return NoneOf[U]()
-					}
 				}
 			}
-		},
-	}
+		}
+	}, input.Parallelism())
 }

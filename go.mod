@@ -1,6 +1,6 @@
 module seqs
 
-go 1.20
+go 1.18
 
 require github.com/onsi/gomega v1.27.8
 
