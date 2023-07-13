@@ -28,6 +28,10 @@ type Option[T any] interface {
 	// ToSeq converts the Option to a Seq. Resulting Seq will either contain one value, in case of Option containing
 	//a value, or it will be an empty Seq, in case the Option is empty
 	ToSeq() Seq[T]
+
+	// Unwrap this Option into two values - the value contained in the Option (or zero value of type T) and the boolean
+	// indicating whether the Option was not empty
+	Unwrap() (T, bool)
 }
 
 // SomeOf creates a new Option[T] wrapping a provided value
@@ -108,6 +112,10 @@ func (s Some[T]) ToSeq() Seq[T] {
 	return SeqOf(s.value)
 }
 
+func (s Some[T]) Unwrap() (T, bool) {
+	return s.value, true
+}
+
 // None is an implementation of Option that contains no value
 //
 // Create new None[T] using NoneOf() function
@@ -142,4 +150,8 @@ func (n None[T]) Apply(_ Consumer[T], onAbsent func()) {
 
 func (n None[T]) ToSeq() Seq[T] {
 	return EmptySeq[T]()
+}
+
+func (n None[T]) Unwrap() (T, bool) {
+	return n.Value(), false
 }

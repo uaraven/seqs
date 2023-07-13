@@ -5,13 +5,8 @@ import "sync"
 func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	return NewParallelSeq[U](
 		func() Option[U] {
-			v, ok := input.Next()
-			if ok {
-				u := mapper(v)
-				return SomeOf(u)
-			} else {
-				return NoneOf[U]()
-			}
+			v := input.Next()
+			return MapOption(v, mapper)
 		}, input.Parallelism(),
 	)
 }
@@ -24,11 +19,11 @@ func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	for i := 0; i < input.Parallelism(); i++ {
 		wg.Add(1)
 		go func() {
-			v, ok := input.Next()
-			for ok {
-				u := mapper(v)
+			v := input.Next()
+			for v.IsPresent() {
+				u := mapper(v.Value())
 				output <- u
-				v, ok = input.Next()
+				v = input.Next()
 			}
 			wg.Done()
 		}()
@@ -60,12 +55,12 @@ func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 
 func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 	chunkSeq := sequentialMap(input, mapper)
-	chunk, chunkValid := chunkSeq.Next()
+	chunk, chunkValid := chunkSeq.Next().Unwrap()
 	return NewParallelSeq(
 		func() Option[U] {
 			for {
 				if !chunkValid {
-					chunk, chunkValid = chunkSeq.Next()
+					chunk, chunkValid = chunkSeq.Next().Unwrap()
 					if !chunkValid {
 						return NoneOf[U]()
 					}
@@ -74,7 +69,7 @@ func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U]
 					chunkValid = false
 					continue
 				}
-				u, ok := chunk.Next()
+				u, ok := chunk.Next().Unwrap()
 				if ok {
 					return SomeOf(u)
 				} else {
@@ -94,17 +89,17 @@ func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 	for i := 0; i < input.Parallelism(); i++ {
 		wg.Add(1)
 		go func() {
-			v, ok := input.Next()
-			for ok {
-				u := mapper(v)
+			v := input.Next()
+			for v.IsPresent() {
+				u := mapper(v.Value())
 				if u != nil {
-					u1, ok1 := u.Next()
-					for ok1 {
-						output <- u1
-						u1, ok1 = u.Next()
+					u1 := u.Next()
+					for u1.IsPresent() {
+						output <- u1.Value()
+						u1 = u.Next()
 					}
 				}
-				v, ok = input.Next()
+				v = input.Next()
 			}
 			wg.Done()
 		}()

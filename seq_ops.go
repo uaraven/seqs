@@ -19,15 +19,15 @@ func Accumulate[T any, R any](input Seq[T], initial R, reducer func(a R, b T) R)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			v, ok := input.Next()
-			for ok {
+			v := input.Next()
+			for v.IsPresent() {
 				for {
 					accumValue := acc.Load()
-					if acc.CompareAndSwap(accumValue, reducer(accumValue.(R), v)) {
+					if acc.CompareAndSwap(accumValue, reducer(accumValue.(R), v.Value())) {
 						break
 					}
 				}
-				v, ok = input.Next()
+				v = input.Next()
 			}
 		}()
 	}
@@ -74,10 +74,10 @@ func ToMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, valueFun
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			u, ok := input.Next()
-			for ok {
-				k := keyFunc(u)
-				v := valueFunc(u)
+			u := input.Next()
+			for u.IsPresent() {
+				k := keyFunc(u.Value())
+				v := valueFunc(u.Value())
 				mapLock.Lock()
 				if l, present := result[k]; present {
 					result[k] = mergeFunc(k, l, v)
@@ -85,7 +85,7 @@ func ToMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, valueFun
 					result[k] = v
 				}
 				mapLock.Unlock()
-				u, ok = input.Next()
+				u = input.Next()
 			}
 		}()
 	}
@@ -117,10 +117,10 @@ func ToMultiMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, val
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			u, ok := input.Next()
-			for ok {
-				k := keyFunc(u)
-				v := valueFunc(u)
+			u := input.Next()
+			for u.IsPresent() {
+				k := keyFunc(u.Value())
+				v := valueFunc(u.Value())
 				mapLock.Lock()
 				if l, present := result[k]; present {
 					result[k] = append(l, v)
@@ -128,7 +128,7 @@ func ToMultiMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, val
 					result[k] = []V{v}
 				}
 				mapLock.Unlock()
-				u, ok = input.Next()
+				u = input.Next()
 			}
 		}()
 	}

@@ -28,9 +28,9 @@ type Seq[T any] interface {
 	// ordered according to the provided comparison function.
 	// This is a terminal operation that will execute the prepared Seq pipeline
 	ToSortedSlice(comparator Comparator[T]) []T
-	// Next returns the next element in this Seq or an zero value of the type T. Second return value is true if
+	// Next returns the next element in this Seq or a zero value of the type T. The second return value is true if
 	// the last call to Next exhausted this Seq.
-	Next() (T, bool)
+	Next() Option[T]
 	// First returns the fist element of this Seq or None if the Seq is empty
 	First() Option[T]
 	// Rest returns a new Seq containing all the elements of this Seq except for the first one
@@ -96,9 +96,8 @@ func (t ProducerSeq[T]) Parallelism() int {
 	return t.parallelism
 }
 
-func (t ProducerSeq[T]) Next() (T, bool) {
-	v := t.producer()
-	return v.Value(), v.IsPresent()
+func (t ProducerSeq[T]) Next() Option[T] {
+	return t.producer()
 }
 
 func (t ProducerSeq[T]) ToSlice() []T {
@@ -179,12 +178,7 @@ func (t ProducerSeq[T]) ForEach(consumer Consumer[T]) {
 }
 
 func (t ProducerSeq[T]) First() Option[T] {
-	v, ok := t.Next()
-	if ok {
-		return SomeOf(v)
-	} else {
-		return NoneOf[T]()
-	}
+	return t.Next()
 }
 
 func (t ProducerSeq[T]) Rest() Seq[T] {
