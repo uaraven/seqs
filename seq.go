@@ -47,6 +47,13 @@ type Seq[T any] interface {
 	Take(count int64) Seq[T]
 	// Skip returns a new Seq consisting of all the elements of this Seq except for the first N elements
 	Skip(count int64) Seq[T]
+
+	// AllMatch returns true if all the sequence elements match the provided predicate
+	AllMatch(test Predicate[T]) bool
+
+	// AnyMatch returns true if any of the sequence elements matches the provided predicate
+	AnyMatch(test Predicate[T]) bool
+
 	// Count returns the number of elements in this Seq. This is a terminal operation
 	Count() int64
 	// Ordered returns a new Seq containing all the elements of this Seq in order.
@@ -66,65 +73,6 @@ type Seq[T any] interface {
 type ProducerSeq[T any] struct {
 	producer    Producer[T]
 	parallelism int
-}
-
-// EmptySeq creates a new sequence that has no elements
-func EmptySeq[T any]() *ProducerSeq[T] {
-	return &ProducerSeq[T]{
-		producer: func() Option[T] {
-			return NoneOf[T]()
-		},
-		parallelism: 1,
-	}
-}
-
-// SeqOf returns a sequential Seq of provided values
-func SeqOf[T any](values ...T) *ProducerSeq[T] {
-	return NewSeq(NewSliceProducer(values))
-}
-
-// NewSeq creates a new sequence that executes operations sequentially
-func NewSeq[T any](producer Producer[T]) *ProducerSeq[T] {
-	return &ProducerSeq[T]{producer: producer, parallelism: 1}
-}
-
-// NewSeqFromSlice creates a new sequence from the given slice
-//
-// If optional parallelism value is provided, and it is higher than 1, then the created Seq will perform
-// operations in parallel.
-func NewSeqFromSlice[T any](source []T, parallelism ...int) *ProducerSeq[T] {
-	if len(parallelism) == 0 {
-		parallelism = []int{1}
-	}
-	return NewParallelSeq(NewSliceProducer(source), parallelism...)
-}
-
-func NewSeqFromMapKeys[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[K] {
-	if len(parallelism) == 0 {
-		parallelism = []int{1}
-	}
-	keyChan := make(chan K)
-	go func() {
-		for k := range source {
-			keyChan <- k
-		}
-		close(keyChan)
-	}()
-	return NewParallelSeq(NewChannelProducer(keyChan), parallelism...)
-}
-
-func NewSeqFromMapValues[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[V] {
-	if len(parallelism) == 0 {
-		parallelism = []int{1}
-	}
-	valChan := make(chan V)
-	go func() {
-		for _, v := range source {
-			valChan <- v
-		}
-		close(valChan)
-	}()
-	return NewParallelSeq(NewChannelProducer(valChan), parallelism...)
 }
 
 // NewParallelSeq creates a new Seq that will execute operations in parallel manner.
@@ -330,6 +278,45 @@ func (t ProducerSeq[T]) Count() int64 {
 	})
 }
 
+func (t ProducerSeq[T]) AnyMatch(test Predicate[T]) bool {
+	output := make(chan bool)
+
+	var wg sync.WaitGroup
+	for i := 0; i < t.parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v := t.producer()
+			for v.IsPresent() {
+				if test(v.Value()) {
+					output <- true
+					return
+				}
+				v = t.producer()
+			}
+		}()
+	}
+
+	// collector
+	var cwg sync.WaitGroup
+	cwg.Add(1)
+	result := false
+	go func() {
+		defer cwg.Done()
+		result = <-output
+	}()
+	wg.Wait()
+	close(output)
+	cwg.Wait()
+	return result
+}
+
+func (t ProducerSeq[T]) AllMatch(test Predicate[T]) bool {
+	return !t.AnyMatch(func(e T) bool {
+		return !test(e)
+	})
+}
+
 func (t ProducerSeq[T]) Ordered(comparator Comparator[T]) Seq[T] {
 	return NewSeqFromSlice(t.ToSortedSlice(comparator), 1)
 }
@@ -351,74 +338,6 @@ func (t ProducerSeq[T]) Sequential() Seq[T] {
 	return NewParallelSeq(t.producer, 1)
 }
 
-// Accumulate reduces a sequence to a single value, combining each element of the sequence with a previous value
-// of the accumulator
-//
-// Initial value of the accumulator is passed as an argument
-func Accumulate[T any, R any](input Seq[T], initial R, reducer func(a R, b T) R) R {
-	output := make(chan T)
-
-	var wg sync.WaitGroup
-	for i := 0; i < input.Parallelism(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			v, ok := input.Next()
-			for ok {
-				output <- v
-				v, ok = input.Next()
-			}
-		}()
-	}
-
-	// collector
-	var cwg sync.WaitGroup
-	cwg.Add(1)
-	accumulator := initial
-	go func() {
-		for u := range output {
-			accumulator = reducer(accumulator, u)
-		}
-		cwg.Done()
-	}()
-
-	wg.Wait()
-	close(output)
-	cwg.Wait()
-	return accumulator
-}
-
-// Map returns a Seq consisting of the results of applying the given mapping function to the elements for the provided input sequence
-//
-// Map returns a new Seq and performs the transformation lazily.
-func Map[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
-	if input.Parallelism() <= 1 {
-		return sequentialMap(input, mapper)
-	} else {
-		return parallelMap(input, mapper)
-	}
-}
-
-// FlatMap returns a sequence consisting of the results of replacing each element of the provided input sequence with
-// the contents of a mapped sequence produced by applying the provided mapping function to each element.
-//
-// If a mapped sequence is nil an empty sequence is used, instead.
-//
-// FlatMap returns a new Seq and performs the transformation lazily.
-func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
-	if input.Parallelism() <= 1 {
-		return sequentialFlatMap(input, mapper)
-	} else {
-		return parallelFlatMap(input, mapper)
-	}
-}
-
 // TODO:
-// GroupBy
-// TakeWhile
-// SkipWhile
 // Partition Seq[T] -> Seq[Seq[T]]
 // SinkToChannel(chan)
-// FindFirst
-// AllMatch
-// AnyMatch

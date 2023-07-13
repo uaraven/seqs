@@ -352,6 +352,75 @@ func TestProducerSeq_Sequential(t *testing.T) {
 	g.Expect(ssrc.Parallelism()).To(Equal(1))
 }
 
+func TestToMultiMap(t *testing.T) {
+	g := NewGomegaWithT(t)
+	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 2)
+	result := ToMultiMap[int, string, string](seq, func(e string) int { return len(e) }, func(e string) string { return e })
+
+	g.Expect(result).To(BeEquivalentTo(map[int][]string{
+		1: {"a", "i"},
+		2: {"bb", "hh"},
+		3: {"ccc", "ggg"},
+		4: {"dddd", "ffff"},
+		5: {"eeeee"},
+	}))
+}
+
+func TestToMap(t *testing.T) {
+	g := NewGomegaWithT(t)
+	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
+	result := ToMap[int, string, string](seq,
+		func(e string) int { return len(e) },
+		func(e string) string { return e },
+		func(k int, v1 string, v2 string) string {
+			if v1 < v2 {
+				return v1
+			} else {
+				return v2
+			}
+		})
+
+	g.Expect(result).To(BeEquivalentTo(map[int]string{
+		1: "a",
+		2: "bb",
+		3: "ccc",
+		4: "dddd",
+		5: "eeeee",
+	}))
+}
+
+func TestProducerSeq_AnyMatch(t *testing.T) {
+	g := NewGomegaWithT(t)
+	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
+
+	result := seq.AnyMatch(func(value string) bool {
+		return value == "ggg"
+	})
+	g.Expect(result).To(BeTrue())
+
+	seq = NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
+	result = seq.AnyMatch(func(value string) bool {
+		return value == "xyz"
+	})
+	g.Expect(result).To(BeFalse())
+}
+
+func TestProducerSeq_AllMatch(t *testing.T) {
+	g := NewGomegaWithT(t)
+	seq := NewSeqFromSlice(makeSlice(100), 4)
+
+	result := seq.AllMatch(func(value int) bool {
+		return value < 1000
+	})
+	g.Expect(result).To(BeTrue())
+
+	seq = NewSeqFromSlice(makeSlice(100), 4)
+	result = seq.AllMatch(func(value int) bool {
+		return value != 50
+	})
+	g.Expect(result).To(BeFalse())
+}
+
 func makeSlice(n int) []int {
 	slice := make([]int, n)
 	for i := 0; i < len(slice); i++ {

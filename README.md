@@ -2,9 +2,9 @@
 
 The sequence processing library. Provides capabilities similar to that of Java Streams.
 
-Sequences are implemented using generics and require Go 1.18 or later.
+Sequences are implemented using generics and require Go 1.19 or later.
 
-Seq[T] is a sequence of elements that supports sequential and parallel aggregate operations.
+`Seq[T]` is a sequence of elements of type `T` that supports sequential and parallel aggregate operations.
 
 Sequences support transformations, filtering, and grouping computations organized as a sequence pipeline. Pipeline 
 consists of a source (a Producer function which can be backed up by slice or channel or anything else really), 
@@ -30,8 +30,6 @@ Intermediate operations:
  - Filter
  - Map
  - FlatMap
- - Accumulate
- - Reduce
  - Take
  - Skip
  - Ordered
@@ -41,9 +39,14 @@ Intermediate operations:
 Terminal operations:
  - ToSlice
  - ToOrderedSlice
+ - ToMap
+ - ToMultiMap
  - ForEach
- - FindAny
  - Count
+ - Accumulate
+ - Reduce
+ - AllMatch
+ - AnyMatch
 
 
 As Go doesn't support declaring new generic types on a method of generic interface, like Java, some of the sequence
@@ -61,9 +64,6 @@ you can't do that in Go, so Map is implemented as this:
 
  func Map[T any, R any](source Seq[T], func mapper(t T) R) Seq[R] {...}
 ```
-
-Note that Map function is still lazy and still supports both parallel and sequential sequences. It is just a bit more
-awkward to use, because you can't use fluent chains with it.
 So instead of doing
 
 ```go
@@ -85,3 +85,6 @@ you will have to write it as follows
       return strconv.itoa(t)
     })
 ```
+
+Note that Map function is still lazy and still supports both parallel and sequential sequences. It is just a bit more
+awkward to use, because you can't use fluent chains with it.
