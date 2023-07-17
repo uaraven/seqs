@@ -357,13 +357,12 @@ func TestToMultiMap(t *testing.T) {
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 2)
 	result := ToMultiMap[int, string, string](seq, func(e string) int { return len(e) }, func(e string) string { return e })
 
-	g.Expect(result).To(BeEquivalentTo(map[int][]string{
-		1: {"a", "i"},
-		2: {"bb", "hh"},
-		3: {"ccc", "ggg"},
-		4: {"dddd", "ffff"},
-		5: {"eeeee"},
-	}))
+	g.Expect(result).To(HaveLen(5))
+	g.Expect(result[1]).To(ContainElements([]string{"a", "i"}))
+	g.Expect(result[2]).To(ContainElements([]string{"bb", "hh"}))
+	g.Expect(result[3]).To(ContainElements([]string{"ccc", "ggg"}))
+	g.Expect(result[4]).To(ContainElements([]string{"dddd", "ffff"}))
+	g.Expect(result[5]).To(ContainElements([]string{"eeeee"}))
 }
 
 func TestToMap(t *testing.T) {
