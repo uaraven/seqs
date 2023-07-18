@@ -1,4 +1,4 @@
-module seqs
+module github.com/uaraven/seqs
 
 go 1.19
 
