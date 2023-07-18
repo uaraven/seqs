@@ -1,3 +1,6 @@
+// Copyright 2023 Les Voronin <me@ovoronin.info>
+// SPDX-License-Identifier: MIT
+
 package seqs
 
 import "fmt"
