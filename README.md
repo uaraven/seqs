@@ -72,7 +72,7 @@ Using it becomes somewhat cumbersome, you'll have to write it as follows
     }), func(t int) string {
       return strconv.itoa(t)
     })
-	s := mapped.ToSlice()
+    s = mapped.ToSlice()
 ```
 
 Note that Map function is still lazy and still supports both parallel and sequential sequences. It is just a bit more
