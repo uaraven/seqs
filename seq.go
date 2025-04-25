@@ -153,12 +153,12 @@ func (t ProducerSeq[T]) ForEach(consumer Consumer[T]) {
 	for i := 0; i < t.parallelism; i++ {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			v := t.producer()
 			for v.IsPresent() {
 				output <- v.Value()
 				v = t.producer()
 			}
-			wg.Done()
 		}()
 	}
 
@@ -166,10 +166,10 @@ func (t ProducerSeq[T]) ForEach(consumer Consumer[T]) {
 	var cwg sync.WaitGroup
 	cwg.Add(1)
 	go func() {
+		defer cwg.Done()
 		for v := range output {
 			consumer(v)
 		}
-		cwg.Done()
 	}()
 
 	wg.Wait()
