@@ -1,3 +1,6 @@
+// Copyright 2023 Les Voronin <me@ovoronin.info>
+// SPDX-License-Identifier: MIT
+
 package seqs
 
 import (
@@ -74,6 +77,8 @@ type ProducerSeq[T any] struct {
 	producer    Producer[T]
 	parallelism int
 }
+
+var _ Seq[int] = NewSeqFromSlice([]int{1, 2, 3})
 
 // NewParallelSeq creates a new Seq that will execute operations in parallel manner.
 // If parallelism level is not specified, then the parallelism will be set to the number of CPUs.

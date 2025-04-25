@@ -1,9 +1,14 @@
+// Copyright 2023 Les Voronin <me@ovoronin.info>
+// SPDX-License-Identifier: MIT
+
 package seqs
 
-// Option can contain a value. On the other hand it can contain nothing
+import "fmt"
+
+// Option is a container that may or may not contain a value. If the value is present, then IsPresent() will return true
+// and Value() will return the value
 //
-// Option interface has two implementations: Some[T] and None[T]. Some contains a value
-// while None is an Option without a value
+// Option can have two states: Some[T] and None[T]. Some contains a value while None is an Option without a value
 type Option[T any] interface {
 	// IsPresent returns true if Option contains a value
 	IsPresent() bool
@@ -50,20 +55,29 @@ func NoneOf[T any]() *None[T] {
 //
 // If the provided option is empty then new empty Option[U] is returned
 func MapOption[T any, U any](option Option[T], mapper func(T) U) Option[U] {
-	var result Option[U]
-	option.Apply(func(value T) {
-		result = SomeOf(mapper(value))
-	}, func() {
-		result = NoneOf[U]()
+	return ApplyOption(option, func(v T) Option[U] {
+		return SomeOf(mapper(v))
+	}, func() Option[U] {
+		return NoneOf[U]()
 	})
-	return result
+}
+
+// FlatMapOption If a value is present, apply the provided Option-bearing mapping function to it, return that result,
+// otherwise return an empty Option. This method is similar to Map(), but the provided mapper is one whose result is
+// already an Option, and if invoked, FlatMap does not wrap it with an additional Optional.
+func FlatMapOption[T any, U any](option Option[T], mapper func(T) Option[U]) Option[U] {
+	return ApplyOption[T, Option[U]](option, func(value T) Option[U] {
+		return mapper(value)
+	}, func() Option[U] {
+		return NoneOf[U]()
+	})
 }
 
 // ApplyOption allows to transform an Option[T] into value of another type U.
 // ApplyOption accepts an option and two transformation functions as a parameter.
 //
-// onPresent will be applied to a value of a non-empty Option[T]
-// onAbsent will be called if the option argument is an empty Option[T]
+// onPresent function will be applied to a value of a non-empty Option[T]
+// onAbsent function will be called if the option argument is an empty Option[T]
 //
 // Both of the functions must return a value of type U and must be free of side effects
 func ApplyOption[T any, U any](option Option[T], onPresent func(T) U, onAbsent func() U) U {
@@ -116,6 +130,10 @@ func (s Some[T]) Unwrap() (T, bool) {
 	return s.value, true
 }
 
+func (s Some[T]) String() string {
+	return fmt.Sprintf("Some[%v]", s.value)
+}
+
 // None is an implementation of Option that contains no value
 //
 // Create new None[T] using NoneOf() function
@@ -154,4 +172,8 @@ func (n None[T]) ToSeq() Seq[T] {
 
 func (n None[T]) Unwrap() (T, bool) {
 	return n.Value(), false
+}
+
+func (n None[T]) String() string {
+	return "None[]"
 }

@@ -1,3 +1,6 @@
+// Copyright 2023 Les Voronin <me@ovoronin.info>
+// SPDX-License-Identifier: MIT
+
 package seqs
 
 // EmptySeq creates a new sequence that has no elements

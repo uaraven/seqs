@@ -49,8 +49,8 @@ Terminal operations:
  - AnyMatch
 
 
-As Go doesn't support declaring new generic types on a method of generic interface, like Java, some of the sequence
-operations are implemented not as methods of `Seq` interface. 
+As Go doesn't support declaring new generic types on a method of generic interface, some of the sequence
+operations are implemented as a separate functions and not as methods of `Seq` interface. 
 
 For example in Java you can have 
 ```java
@@ -64,19 +64,7 @@ you can't do that in Go, so Map is implemented as this:
 
  func Map[T any, R any](source Seq[T], func mapper(t T) R) Seq[R] {...}
 ```
-So instead of doing
-
-```go
-    s := SeqOf(1,2,3,4,5)
-    mapped := s.
-        Filter(func(t int) {
-         return t % 2 == 0
-        }).
-        Map(func(t int) string {
-          return strconv.itoa(t)
-        })
-```
-you will have to write it as follows
+Using it becomes somewhat cumbersome, you'll have to write it as follows
 ```go
     s := SeqOf(1,2,3,4,5)
     mapped := Map[int, string](s.Filter(func(t int) {
@@ -84,7 +72,8 @@ you will have to write it as follows
     }), func(t int) string {
       return strconv.itoa(t)
     })
+    s = mapped.ToSlice()
 ```
 
 Note that Map function is still lazy and still supports both parallel and sequential sequences. It is just a bit more
-awkward to use, because you can't use fluent chains with it.
+awkward to use, because you can't use chained calls with it.
