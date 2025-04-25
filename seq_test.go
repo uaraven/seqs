@@ -183,7 +183,7 @@ func TestProducerSeq_Rest(t *testing.T) {
 	slice := makeSlice(5)
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
 	v := seq.Rest().ToSlice()
-	g.Expect(v).To(ContainElements(1, 2, 3, 4))
+	g.Expect(v).To(gomega.ContainElements(1, 2, 3, 4))
 	slice = makeSlice(0)
 	seq = NewParallelSeq(NewSliceProducer(slice), 4)
 	v = seq.Rest().ToSlice()
