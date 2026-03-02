@@ -1,6 +1,6 @@
 module github.com/uaraven/seqs
 
-go 1.19
+go 1.23.0
 
 require (
 	github.com/onsi/gomega v1.27.8
@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/google/go-cmp v0.5.9 // indirect
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
