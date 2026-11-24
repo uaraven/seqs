@@ -4,14 +4,13 @@
 package seqs
 
 import (
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"runtime"
 	"slices"
 	"testing"
 )
 
 func TestSliceFilter(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(1000)
 
 	seq := NewSeq(NewSliceProducer(slice))
@@ -29,11 +28,10 @@ func TestSliceFilter(t *testing.T) {
 		}
 	}
 
-	g.Expect(result).To(gomega.BeEquivalentTo(expected))
+	assert.EqualValues(t, expected, result)
 }
 
 func TestSliceParallelFilter(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(1000)
 
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
@@ -51,12 +49,10 @@ func TestSliceParallelFilter(t *testing.T) {
 		}
 	}
 
-	g.Expect(result).To(gomega.BeEquivalentTo(expected))
+	assert.EqualValues(t, expected, result)
 }
 
 func TestMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	data := makeSlice(1000)
 	seq := NewParallelSeq(NewSliceProducer(data), runtime.NumCPU())
 	mapped := seq.Map(func(t int) int {
@@ -70,12 +66,10 @@ func TestMap(t *testing.T) {
 		expected[i] = data[i] * 2
 	}
 
-	g.Expect(mapped).To(gomega.BeEquivalentTo(expected))
+	assert.EqualValues(t, expected, mapped)
 }
 
 func TestFlatMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	superSlice := [][]int{
 		{0, 1, 2, 3},
 		{4, 5, 6},
@@ -87,14 +81,12 @@ func TestFlatMap(t *testing.T) {
 		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSlice()
-	g.Expect(result).To(gomega.BeEquivalentTo([]int{
+	assert.EqualValues(t, []int{
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	}))
+	}, result)
 }
 
 func TestFlatMapWithNilMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	superSlice := [][]int{
 		{0, 1, 2, 3},
 		{4, 5, 6},
@@ -110,14 +102,12 @@ func TestFlatMapWithNilMap(t *testing.T) {
 		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSlice()
-	g.Expect(result).To(gomega.BeEquivalentTo([]int{
+	assert.EqualValues(t, []int{
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	}))
+	}, result)
 }
 
 func TestParallelFlatMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	superSlice := [][]int{
 		{0, 1, 2, 3},
 		{4, 5, 6},
@@ -131,14 +121,12 @@ func TestParallelFlatMap(t *testing.T) {
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
 		return t1 - t2
 	})
-	g.Expect(result).To(gomega.BeEquivalentTo([]int{
+	assert.EqualValues(t, []int{
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	}))
+	}, result)
 }
 
 func TestParallelFlatMapWithNilMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	superSlice := [][]int{
 		{0, 1, 2, 3},
 		{4, 5, 6},
@@ -156,45 +144,42 @@ func TestParallelFlatMapWithNilMap(t *testing.T) {
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
 		return t1 - t2
 	})
-	g.Expect(result).To(gomega.BeEquivalentTo([]int{
+	assert.EqualValues(t, []int{
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	}))
+	}, result)
 }
 
 func TestProducerSeq_First(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(5)
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
 	v := seq.First()
-	g.Expect(v.IsPresent()).To(gomega.BeTrue())
-	g.Expect(v.Value()).To(gomega.Equal(0))
+	assert.True(t, v.IsPresent())
+	assert.Equal(t, 0, v.Value())
 	slice = makeSlice(0)
 	seq = NewParallelSeq(NewSliceProducer(slice), 4)
 	v = seq.First()
-	g.Expect(v.IsPresent()).To(gomega.BeFalse())
+	assert.False(t, v.IsPresent())
 }
 
 func TestProducerSeq_Rest(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(5)
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
 	v := seq.Rest().ToSlice()
-	g.Expect(v).To(gomega.ContainElements(1, 2, 3, 4))
+	containsAll(t, v, 1, 2, 3, 4)
 	slice = makeSlice(0)
 	seq = NewParallelSeq(NewSliceProducer(slice), 4)
 	v = seq.Rest().ToSlice()
-	g.Expect(v).To(gomega.HaveLen(0))
+	assert.Len(t, v, 0)
 }
 
 func TestProducerSeq_Reduce(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(5)
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
 	v := seq.Reduce(func(a int, b int) int {
 		return a + b
 	})
 
-	g.Expect(v).To(gomega.Equal(10))
+	assert.Equal(t, 10, v)
 
 	slice = makeSlice(51)
 	seq = NewParallelSeq(NewSliceProducer(slice), 4)
@@ -202,22 +187,20 @@ func TestProducerSeq_Reduce(t *testing.T) {
 		return a + b
 	})
 
-	g.Expect(v).To(gomega.Equal(1275))
+	assert.Equal(t, 1275, v)
 }
 
 func TestProducerSeq_Accumulate(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := []string{"a", "bb", "ccc", "dddd", "eeeee"}
 	seq := NewSeqFromSlice(slice, 4)
 	v := seq.Accumulate(0, func(a int, b string) int {
 		return a + len(b)
 	})
 
-	g.Expect(v).To(gomega.Equal(15))
+	assert.Equal(t, 15, v)
 }
 
 func TestProducerSeq_ReduceWithChannelProducer(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(51)
 	src := make(chan int)
 	seq := NewParallelSeq(NewChannelProducer(src), 4)
@@ -233,11 +216,10 @@ func TestProducerSeq_ReduceWithChannelProducer(t *testing.T) {
 		return a + b
 	})
 
-	g.Expect(v).To(gomega.Equal(1275))
+	assert.Equal(t, 1275, v)
 }
 
 func TestNewSeqFromMapKeys(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	src := map[int]string{
 		4: "four",
 		2: "two",
@@ -245,12 +227,11 @@ func TestNewSeqFromMapKeys(t *testing.T) {
 		3: "three",
 	}
 	keys := NewSeqFromMapKeys(src).ToSlice()
-	g.Expect(keys).To(gomega.HaveLen(4))
-	g.Expect(keys).To(gomega.ContainElements(1, 2, 3, 4))
+	assert.Len(t, keys, 4)
+	containsAll(t, keys, 1, 2, 3, 4)
 }
 
 func TestNewSeqFromMapValues(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	src := map[int]string{
 		4: "four",
 		2: "two",
@@ -258,29 +239,25 @@ func TestNewSeqFromMapValues(t *testing.T) {
 		3: "three",
 	}
 	vals := NewSeqFromMapValues(src).ToSlice()
-	g.Expect(vals).To(gomega.HaveLen(4))
-	g.Expect(vals).To(gomega.ContainElements("one", "two", "three", "four"))
+	assert.Len(t, vals, 4)
+	containsAll(t, vals, "one", "two", "three", "four")
 }
 
 func TestProducerSeq_Count(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	slice := makeSlice(51)
 	seq := NewParallelSeq(NewSliceProducer(slice), 4)
 	v := seq.Count()
 
-	g.Expect(v).To(gomega.Equal(int64(51)))
+	assert.Equal(t, int64(51), v)
 }
 
 func TestEmptySeq(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	r := EmptySeq[int]().ToSlice()
 
-	g.Expect(r).To(gomega.HaveLen(0))
+	assert.Len(t, r, 0)
 }
 
 func TestProducerSeq_Peek(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	src := SeqOf(1, 2, 3, 4, 5)
 	dst := make([]int, 0)
 
@@ -288,84 +265,72 @@ func TestProducerSeq_Peek(t *testing.T) {
 		dst = append(dst, value)
 	}).Count()
 
-	g.Expect(dst).To(gomega.HaveLen(5))
-	g.Expect(dst).To(gomega.ContainElements(1, 2, 3, 4, 5))
+	assert.Len(t, dst, 5)
+	containsAll(t, dst, 1, 2, 3, 4, 5)
 }
 
 func TestProducerSeq_Take(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	res1 := SeqOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).Take(4).ToSlice()
-	g.Expect(res1).To(gomega.ContainElements(1, 2, 3, 4))
+	containsAll(t, res1, 1, 2, 3, 4)
 
 	res2 := SeqOf(1, 2, 3, 4).Take(6).ToSlice()
-	g.Expect(res2).To(gomega.ContainElements(1, 2, 3, 4))
+	containsAll(t, res2, 1, 2, 3, 4)
 }
 
 func TestProducerSeq_Skip(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	res1 := SeqOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).Skip(4).ToSlice()
-	g.Expect(res1).To(gomega.ContainElements(5, 6, 7, 8, 9, 10))
+	containsAll(t, res1, 5, 6, 7, 8, 9, 10)
 
 	res2 := SeqOf(1, 2, 3, 4).Skip(6).ToSlice()
-	g.Expect(res2).To(gomega.HaveLen(0))
+	assert.Len(t, res2, 0)
 
 	res3 := SeqOf(1, 2, 3, 4).Skip(4).ToSlice()
-	g.Expect(res3).To(gomega.HaveLen(0))
+	assert.Len(t, res3, 0)
 }
 
 func TestProducerSeq_Ordered(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	src := NewSeqFromSlice([]int{10, 2, 5, 9, 3, 7, 6, 8, 4, 1}, 4)
 	res := src.Ordered(func(t1 int, t2 int) int {
 		return t1 - t2
 	}).ToSlice()
 
-	g.Expect(res).To(gomega.Equal([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+	assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, res)
 }
 
 func TestProducerSeq_Parallel(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	slice := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	src := NewSeqFromSlice(slice)
 
-	g.Expect(src.ToSlice()).To(gomega.Equal(slice))
+	assert.Equal(t, slice, src.ToSlice())
 
 	psrc := src.Parallel(4)
 
-	g.Expect(psrc.ToSlice()).ToNot(gomega.Equal(slice))
-	g.Expect(psrc.Parallelism()).To(gomega.Equal(4))
+	assert.NotEqual(t, slice, psrc.ToSlice())
+	assert.Equal(t, 4, psrc.Parallelism())
 }
 
 func TestProducerSeq_Sequential(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
 	slice := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	src := NewSeqFromSlice(slice, 4)
 
 	ssrc := src.Sequential()
-	g.Expect(ssrc.ToSlice()).To(gomega.ContainElements(slice))
-	g.Expect(ssrc.Parallelism()).To(gomega.Equal(1))
+	assert.Subset(t, ssrc.ToSlice(), slice)
+	assert.Equal(t, 1, ssrc.Parallelism())
 }
 
 func TestToMultiMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 2)
 	result := seq.ToMultiMap(func(e string) int { return len(e) }, func(e string) string { return e })
 
-	g.Expect(result).To(gomega.HaveLen(5))
-	g.Expect(result[1]).To(gomega.ContainElements([]string{"a", "i"}))
-	g.Expect(result[2]).To(gomega.ContainElements([]string{"bb", "hh"}))
-	g.Expect(result[3]).To(gomega.ContainElements([]string{"ccc", "ggg"}))
-	g.Expect(result[4]).To(gomega.ContainElements([]string{"dddd", "ffff"}))
-	g.Expect(result[5]).To(gomega.ContainElements([]string{"eeeee"}))
+	assert.Len(t, result, 5)
+	assert.Subset(t, result[1], []string{"a", "i"})
+	assert.Subset(t, result[2], []string{"bb", "hh"})
+	assert.Subset(t, result[3], []string{"ccc", "ggg"})
+	assert.Subset(t, result[4], []string{"dddd", "ffff"})
+	assert.Subset(t, result[5], []string{"eeeee"})
 }
 
 func TestToMap(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
 	result := seq.ToMap(
 		func(e string) int { return len(e) },
@@ -378,45 +343,43 @@ func TestToMap(t *testing.T) {
 			}
 		})
 
-	g.Expect(result).To(gomega.BeEquivalentTo(map[int]string{
+	assert.EqualValues(t, map[int]string{
 		1: "a",
 		2: "bb",
 		3: "ccc",
 		4: "dddd",
 		5: "eeeee",
-	}))
+	}, result)
 }
 
 func TestProducerSeq_AnyMatch(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
 
 	result := seq.AnyMatch(func(value string) bool {
 		return value == "ggg"
 	})
-	g.Expect(result).To(gomega.BeTrue())
+	assert.True(t, result)
 
 	seq = NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
 	result = seq.AnyMatch(func(value string) bool {
 		return value == "xyz"
 	})
-	g.Expect(result).To(gomega.BeFalse())
+	assert.False(t, result)
 }
 
 func TestProducerSeq_AllMatch(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice(makeSlice(100), 4)
 
 	result := seq.AllMatch(func(value int) bool {
 		return value < 1000
 	})
-	g.Expect(result).To(gomega.BeTrue())
+	assert.True(t, result)
 
 	seq = NewSeqFromSlice(makeSlice(100), 4)
 	result = seq.AllMatch(func(value int) bool {
 		return value != 50
 	})
-	g.Expect(result).To(gomega.BeFalse())
+	assert.False(t, result)
 }
 
 func makeSlice(n int) []int {

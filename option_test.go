@@ -4,97 +4,81 @@
 package seqs
 
 import (
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 )
 
 func TestOptionApply(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := SomeOf(10)
 	o.Apply(func(value int) {
-		g.Expect(value).To(gomega.Equal(10))
+		assert.Equal(t, 10, value)
 	}, func() {
-		g.Fail("Should not be called")
+		assert.Fail(t, "Should not be called")
 	})
 }
 
 func TestEmptyOptionApply(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := NoneOf[int]()
 	o.Apply(func(value int) {
-		g.Fail("Should not be called")
+		assert.Fail(t, "Should not be called")
 	}, func() {
 	})
 }
 
 func TestFoldOption(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := SomeOf(10)
 	r := o.Fold(func(value int) string {
 		return strconv.Itoa(value)
 	}, func() string {
 		return "none"
 	})
-	g.Expect(r).To(gomega.Equal("10"))
+	assert.Equal(t, "10", r)
 }
 
 func TestFoldEmptyOption(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := NoneOf[int]()
 	r := o.Fold(func(value int) string {
 		return strconv.Itoa(value)
 	}, func() string {
 		return "none"
 	})
-	g.Expect(r).To(gomega.Equal("none"))
+	assert.Equal(t, "none", r)
 }
 
 func TestMapOptionPresent(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := SomeOf(10)
 	om := o.Map(func(t int) string {
 		return strconv.Itoa(t)
 	})
 
-	g.Expect(om.IsPresent()).To(gomega.BeTrue())
-	g.Expect(om.Value()).To(gomega.Equal("10"))
-	g.Expect(om.OrElse("20")).To(gomega.Equal("10"))
+	assert.True(t, om.IsPresent())
+	assert.Equal(t, "10", om.Value())
+	assert.Equal(t, "10", om.OrElse("20"))
 }
 
 func TestMapOptionNone(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := NoneOf[int]()
 	om := o.Map(func(t int) string {
 		return strconv.Itoa(t)
 	})
 
-	g.Expect(om.IsPresent()).To(gomega.BeFalse())
-	g.Expect(om.OrElse("20")).To(gomega.Equal("20"))
-	g.Expect(om.Value()).To(gomega.Equal(""))
+	assert.False(t, om.IsPresent())
+	assert.Equal(t, "20", om.OrElse("20"))
+	assert.Equal(t, "", om.Value())
 }
 
 func TestOptionSomeToSeq(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := SomeOf(10)
 	s := o.ToSeq().ToSlice()
 
-	g.Expect(s).To(gomega.HaveLen(1))
-	g.Expect(s).To(gomega.ContainElements(10))
+	assert.Len(t, s, 1)
+	containsAll(t, s, 10)
 }
 
 func TestOptionNoneToSeq(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	o := NoneOf[int]()
 	s := o.ToSeq().ToSlice()
 
-	g.Expect(s).To(gomega.HaveLen(0))
+	assert.Len(t, s, 0)
 }

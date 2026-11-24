@@ -1,16 +1,21 @@
 package seqs
 
 import (
-	"github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestNot(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
 	isOdd := func(v int) bool {
 		return v%2 != 0
 	}
 	isEven := Not(isOdd)
-	g.Expect(isEven(2)).To(gomega.BeTrue())
-	g.Expect(isEven(1)).To(gomega.BeFalse())
+	assert.True(t, isEven(2))
+	assert.False(t, isEven(1))
+}
+
+// containsAll asserts that actual contains all the expected elements
+func containsAll[T any](t *testing.T, actual []T, expected ...T) {
+	t.Helper()
+	assert.Subset(t, actual, expected)
 }
