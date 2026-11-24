@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestSliceFilter(t *testing.T) {
@@ -288,6 +289,46 @@ func TestProducerSeq_Skip(t *testing.T) {
 	assert.Len(t, res3, 0)
 }
 
+// Regression test: in parallel mode Skip used to flag skipping as done before it finished, so workers returned
+// elements that should have been skipped, and the result length was wrong.
+func TestProducerSeq_SkipParallelCount(t *testing.T) {
+	const size = 1000
+	for _, parallelism := range []int{1, 2, 4, 8, 32} {
+		for _, skip := range []int64{0, 1, 2, 5, 500, 999, 1000, 2000} {
+			want := max(int64(size)-skip, 0)
+			for range 10 {
+				runWithTimeout(t, func() {
+					res := NewSeqFromSlice(makeSlice(size), parallelism).Skip(skip).ToSlice()
+					assert.EqualValues(t, want, len(res), "parallelism=%d skip=%d", parallelism, skip)
+					// every source element is returned at most once
+					seen := make(map[int]bool, len(res))
+					for _, v := range res {
+						assert.False(t, seen[v], "duplicate %d, parallelism=%d skip=%d", v, parallelism, skip)
+						seen[v] = true
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestProducerSeq_SkipParallelCountOperation(t *testing.T) {
+	for _, parallelism := range []int{1, 4, 8} {
+		runWithTimeout(t, func() {
+			assert.EqualValues(t, 500, NewSeqFromSlice(makeSlice(1000), parallelism).Skip(500).Count())
+		})
+	}
+}
+
+// A sequential Seq must skip exactly the first N elements, in order.
+func TestProducerSeq_SkipSequentialOrder(t *testing.T) {
+	assert.Equal(t, []int{1, 2, 3, 4}, SeqOf(0, 1, 2, 3, 4).Skip(1).ToSlice())
+	assert.Equal(t, []int{5, 6, 7, 8, 9}, SeqOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9).Skip(5).ToSlice())
+	assert.Equal(t, []int{0, 1, 2}, SeqOf(0, 1, 2).Skip(0).ToSlice())
+	assert.Empty(t, SeqOf(0, 1, 2).Skip(3).ToSlice())
+	assert.Empty(t, Seq[int]{}.Skip(2).ToSlice())
+}
+
 func TestProducerSeq_Ordered(t *testing.T) {
 	src := NewSeqFromSlice([]int{10, 2, 5, 9, 3, 7, 6, 8, 4, 1}, 4)
 	res := src.Ordered(func(t1 int, t2 int) int {
@@ -380,6 +421,61 @@ func TestProducerSeq_AllMatch(t *testing.T) {
 		return value != 50
 	})
 	assert.False(t, result)
+}
+
+// runWithTimeout fails the test if f does not return in time. It guards against deadlocks.
+func runWithTimeout(t *testing.T, f func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f()
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("operation did not complete in time: deadlock")
+	}
+}
+
+// Regression test: with parallelism > 1, several workers matching used to block forever on an unbuffered channel.
+func TestProducerSeq_AnyMatchParallelNoDeadlock(t *testing.T) {
+	data := makeSlice(100)
+	for _, parallelism := range []int{1, 2, 4, 8, 32} {
+		for range 50 {
+			runWithTimeout(t, func() {
+				// every element matches, so every worker finds a match
+				assert.True(t, NewSeqFromSlice(data, parallelism).AnyMatch(func(int) bool { return true }))
+				assert.False(t, NewSeqFromSlice(data, parallelism).AnyMatch(func(int) bool { return false }))
+				assert.True(t, NewSeqFromSlice(data, parallelism).AnyMatch(func(v int) bool { return v == 99 }))
+			})
+		}
+	}
+}
+
+// Regression test: AllMatch is built on AnyMatch and used to hang when two or more elements failed the test.
+func TestProducerSeq_AllMatchParallelNoDeadlock(t *testing.T) {
+	data := makeSlice(100)
+	for _, parallelism := range []int{1, 2, 4, 8, 32} {
+		for range 50 {
+			runWithTimeout(t, func() {
+				// many elements fail the test
+				assert.False(t, NewSeqFromSlice(data, parallelism).AllMatch(func(v int) bool { return v%2 == 0 }))
+				assert.False(t, NewSeqFromSlice(data, parallelism).AllMatch(func(int) bool { return false }))
+				assert.True(t, NewSeqFromSlice(data, parallelism).AllMatch(func(v int) bool { return v >= 0 }))
+			})
+		}
+	}
+}
+
+func TestProducerSeq_AnyAllMatchEmpty(t *testing.T) {
+	for _, parallelism := range []int{1, 4} {
+		runWithTimeout(t, func() {
+			assert.False(t, NewSeqFromSlice([]int{}, parallelism).AnyMatch(func(int) bool { return true }))
+			assert.True(t, NewSeqFromSlice([]int{}, parallelism).AllMatch(func(int) bool { return false }))
+		})
+	}
+	assert.False(t, Seq[int]{}.AnyMatch(func(int) bool { return true }))
 }
 
 func makeSlice(n int) []int {

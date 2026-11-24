@@ -163,23 +163,28 @@ func (t Seq[T]) Take(count int64) Seq[T] {
 }
 
 func (t Seq[T]) Skip(count int64) Seq[T] {
-	skipped := atomic.Bool{}
+	var mtx sync.Mutex
+	var skipped atomic.Bool
 	return NewParallelSeq(
 		func() Option[T] {
-			// if already skipped, return next value immediately
-			if skipped.Load() {
-				return t.Next()
-			}
-			// set skipped flag
-			skipped.Store(true)
-			// try to skip requested number of elements
-			for i := int64(0); i < count; i++ {
-				v := t.Next()
-				if !v.IsPresent() { // if reached the end of Seq, return immediately
-					return v
+			if !skipped.Load() {
+				mtx.Lock()
+				if skipped.Load() {
+					mtx.Unlock()
+					return t.Next()
 				}
+				for i := int64(0); i < count; i++ {
+					v := t.Next()
+					if !v.IsPresent() {
+						skipped.Store(true)
+						mtx.Unlock()
+						return v
+					}
+				}
+				skipped.Store(true)
+				mtx.Unlock()
 			}
-			return t.Next() // return next value
+			return t.Next()
 		},
 		t.Parallelism(),
 	)
@@ -235,7 +240,7 @@ func (t Seq[T]) Count() int64 {
 }
 
 func (t Seq[T]) AnyMatch(test Predicate[T]) bool {
-	output := make(chan bool)
+	found := atomic.Bool{}
 
 	var wg sync.WaitGroup
 	for i := 0; i < t.Parallelism(); i++ {
@@ -244,8 +249,11 @@ func (t Seq[T]) AnyMatch(test Predicate[T]) bool {
 			defer wg.Done()
 			v := t.Next()
 			for v.IsPresent() {
+				if found.Load() {
+					break
+				}
 				if test(v.Value()) {
-					output <- true
+					found.Store(true)
 					return
 				}
 				v = t.Next()
@@ -253,18 +261,8 @@ func (t Seq[T]) AnyMatch(test Predicate[T]) bool {
 		}()
 	}
 
-	// collector
-	var cwg sync.WaitGroup
-	cwg.Add(1)
-	result := false
-	go func() {
-		defer cwg.Done()
-		result = <-output
-	}()
 	wg.Wait()
-	close(output)
-	cwg.Wait()
-	return result
+	return found.Load()
 }
 
 func (t Seq[T]) AllMatch(test Predicate[T]) bool {
