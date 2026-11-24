@@ -113,15 +113,13 @@ func (t Seq[T]) ForEach(consumer Consumer[T]) {
 
 	var wg sync.WaitGroup
 	for i := 0; i < t.Parallelism(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			v := t.Next()
 			for v.IsPresent() {
 				output <- v.Value()
 				v = t.Next()
 			}
-		}()
+		})
 	}
 
 	// collector
@@ -148,15 +146,13 @@ func (t Seq[T]) Rest() Seq[T] {
 }
 
 func (t Seq[T]) Take(count int64) Seq[T] {
-	counter := int64(0)
+	taken := int64(0)
 	return NewParallelSeq(
 		func() Option[T] {
-			if counter < count {
-				atomic.AddInt64(&counter, 1)
-				return t.Next()
-			} else {
+			if atomic.AddInt64(&taken, 1) > count {
 				return NoneOf[T]()
 			}
+			return t.Next()
 		},
 		t.Parallelism(),
 	)

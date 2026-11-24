@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -276,6 +278,65 @@ func TestProducerSeq_Take(t *testing.T) {
 
 	res2 := SeqOf(1, 2, 3, 4).Take(6).ToSlice()
 	containsAll(t, res2, 1, 2, 3, 4)
+}
+
+// Regression test: Take read its counter non-atomically and checked and incremented it in two steps,
+// so concurrent workers could pass the check together and return more than count elements (and `go test -race` flags it).
+func TestProducerSeq_TakeParallelExactCount(t *testing.T) {
+	for _, parallelism := range []int{2, 4, 8, 32} {
+		for _, take := range []int64{1, 5, 10, 100} {
+			for range 100 {
+				runWithTimeout(t, func() {
+					res := NewSeqFromSlice(makeSlice(1000), parallelism).Take(take).ToSlice()
+					assert.EqualValues(t, take, len(res), "parallelism=%d take=%d", parallelism, take)
+				})
+			}
+		}
+	}
+}
+
+// Calls Next from many goroutines released at the same time, which makes the check-then-increment window visible.
+func TestProducerSeq_TakeConcurrentNextNeverExceedsCount(t *testing.T) {
+	const workers = 64
+	const take = 10
+	for range 300 {
+		var received atomic.Int64
+		seq := NewSeqFromSlice(makeSlice(100000), workers).Take(take)
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range workers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				if seq.Next().IsPresent() {
+					received.Add(1)
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		assert.EqualValues(t, take, received.Load(), "Take(%d) must return exactly %d elements", take, take)
+	}
+}
+
+func TestProducerSeq_TakeKeepsReturningNoneAfterCount(t *testing.T) {
+	seq := SeqOf(1, 2, 3, 4, 5).Take(2)
+	assert.True(t, seq.Next().IsPresent())
+	assert.True(t, seq.Next().IsPresent())
+	for range 10 {
+		assert.False(t, seq.Next().IsPresent())
+	}
+}
+
+func TestProducerSeq_TakeEdgeCases(t *testing.T) {
+	assert.Empty(t, SeqOf(1, 2, 3).Take(0).ToSlice())
+	assert.Empty(t, SeqOf(1, 2, 3).Take(-1).ToSlice())
+	assert.Equal(t, []int{1, 2, 3}, SeqOf(1, 2, 3).Take(10).ToSlice())
+	assert.Empty(t, Seq[int]{}.Take(3).ToSlice())
+	assert.Equal(t, []int{1, 2}, SeqOf(1, 2, 3, 4).Take(2).ToSlice())
 }
 
 func TestProducerSeq_Skip(t *testing.T) {
