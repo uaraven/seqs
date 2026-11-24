@@ -30,11 +30,11 @@ func TestEmptyOptionApply(t *testing.T) {
 	})
 }
 
-func TestApplyOption(t *testing.T) {
+func TestFoldOption(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	o := SomeOf(10)
-	r := ApplyOption[int, string](o, func(value int) string {
+	r := o.Fold(func(value int) string {
 		return strconv.Itoa(value)
 	}, func() string {
 		return "none"
@@ -42,11 +42,11 @@ func TestApplyOption(t *testing.T) {
 	g.Expect(r).To(gomega.Equal("10"))
 }
 
-func TestApplyEmptyOption(t *testing.T) {
+func TestFoldEmptyOption(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	o := NoneOf[int]()
-	r := ApplyOption[int, string](o, func(value int) string {
+	r := o.Fold(func(value int) string {
 		return strconv.Itoa(value)
 	}, func() string {
 		return "none"
@@ -58,7 +58,7 @@ func TestMapOptionPresent(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	o := SomeOf(10)
-	om := MapOption[int, string](o, func(t int) string {
+	om := o.Map(func(t int) string {
 		return strconv.Itoa(t)
 	})
 
@@ -71,7 +71,7 @@ func TestMapOptionNone(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	o := NoneOf[int]()
-	om := MapOption[int, string](o, func(t int) string {
+	om := o.Map(func(t int) string {
 		return strconv.Itoa(t)
 	})
 

@@ -12,7 +12,7 @@ import (
 // of the accumulator
 //
 // Initial value of the accumulator is passed as an argument
-func Accumulate[T any, R any](input Seq[T], initial R, reducer func(a R, b T) R) R {
+func (input Seq[T]) Accumulate[R any](initial R, reducer func(a R, b T) R) R {
 	output := make(chan T)
 
 	var acc atomic.Value
@@ -42,7 +42,7 @@ func Accumulate[T any, R any](input Seq[T], initial R, reducer func(a R, b T) R)
 // Map returns a Seq consisting of the results of applying the given mapping function to the elements for the provided input sequence
 //
 // Map returns a new Seq and performs the transformation lazily.
-func Map[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
+func (input Seq[T]) Map[U any](mapper func(T) U) Seq[U] {
 	if input.Parallelism() <= 1 {
 		return sequentialMap(input, mapper)
 	} else {
@@ -56,7 +56,7 @@ func Map[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 // If a mapped sequence is nil an empty sequence is used, instead.
 //
 // FlatMap returns a new Seq and performs the transformation lazily.
-func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
+func (input Seq[T]) FlatMap[U any](mapper func(T) Seq[U]) Seq[U] {
 	if input.Parallelism() <= 1 {
 		return sequentialFlatMap(input, mapper)
 	} else {
@@ -68,7 +68,7 @@ func FlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 // mapping functions to the input element.
 // If the mapping keys contains duplicates then the value mapping function is applied to each element and the results
 // are merged using the provided merging function
-func ToMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, valueFunc func(T) V, mergeFunc func(K, V, V) V) map[K]V {
+func (input Seq[T]) ToMap[K comparable, V any](keyFunc func(T) K, valueFunc func(T) V, mergeFunc func(K, V, V) V) map[K]V {
 	result := make(map[K]V)
 	mapLock := sync.RWMutex{}
 
@@ -111,7 +111,7 @@ func MergeSecond[K comparable, V any](key K, value1 V, value2 V) V {
 // ToMultiMap accumulates sequence elements into the map using the provider key and value mapping functions.
 // Result is a map from the key to the slice of values. If multiple sequence elements map to the same
 // key, the values will be appended to a slice mapped to the key.
-func ToMultiMap[K comparable, V any, T any](input Seq[T], keyFunc func(T) K, valueFunc func(T) V) map[K][]V {
+func (input Seq[T]) ToMultiMap[K comparable, V any](keyFunc func(T) K, valueFunc func(T) V) map[K][]V {
 	result := make(map[K][]V)
 	mapLock := sync.RWMutex{}
 

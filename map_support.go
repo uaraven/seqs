@@ -9,7 +9,7 @@ func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	return NewParallelSeq[U](
 		func() Option[U] {
 			v := input.Next()
-			return MapOption(v, mapper)
+			return v.Map(mapper)
 		}, input.Parallelism(),
 	)
 }
@@ -68,7 +68,7 @@ func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U]
 						return NoneOf[U]()
 					}
 				}
-				if chunk == nil {
+				if chunk.isZero() {
 					chunkValid = false
 					continue
 				}
@@ -95,7 +95,7 @@ func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
 			v := input.Next()
 			for v.IsPresent() {
 				u := mapper(v.Value())
-				if u != nil {
+				if !u.isZero() {
 					u1 := u.Next()
 					for u1.IsPresent() {
 						output <- u1.Value()

@@ -63,7 +63,7 @@ func TestMap(t *testing.T) {
 
 	data := makeSlice(1000)
 	seq := NewParallelSeq[int](NewSliceProducer(data), runtime.NumCPU())
-	mapped := Map[int, int](seq, func(t int) int {
+	mapped := seq.Map(func(t int) int {
 		return t * 2
 	}).ToSortedSlice(func(t1 int, t2 int) int {
 		return t1 - t2
@@ -87,7 +87,7 @@ func TestFlatMap(t *testing.T) {
 		{9},
 	}
 	seq := NewSeq[[]int](NewSliceProducer(superSlice))
-	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		return NewSeq[int](NewSliceProducer[int](t))
 	})
 	result := flatMap.ToSlice()
@@ -107,9 +107,9 @@ func TestFlatMapWithNilMap(t *testing.T) {
 		{9},
 	}
 	seq := NewSeq[[]int](NewSliceProducer(superSlice))
-	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		if len(t) == 0 {
-			return nil
+			return Seq[int]{}
 		}
 		return NewSeq[int](NewSliceProducer[int](t))
 	})
@@ -129,7 +129,7 @@ func TestParallelFlatMap(t *testing.T) {
 		{9},
 	}
 	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
-	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		return NewSeq[int](NewSliceProducer[int](t))
 	})
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
@@ -151,9 +151,9 @@ func TestParallelFlatMapWithNilMap(t *testing.T) {
 		{9},
 	}
 	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
-	flatMap := FlatMap[[]int](seq, func(t []int) Seq[int] {
+	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		if len(t) == 0 {
-			return nil
+			return Seq[int]{}
 		}
 		return NewSeq[int](NewSliceProducer[int](t))
 	})
@@ -213,7 +213,7 @@ func TestProducerSeq_Accumulate(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 	slice := []string{"a", "bb", "ccc", "dddd", "eeeee"}
 	seq := NewSeqFromSlice(slice, 4)
-	v := Accumulate[string, int](seq, 0, func(a int, b string) int {
+	v := seq.Accumulate(0, func(a int, b string) int {
 		return a + len(b)
 	})
 
@@ -358,7 +358,7 @@ func TestProducerSeq_Sequential(t *testing.T) {
 func TestToMultiMap(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 2)
-	result := ToMultiMap[int, string, string](seq, func(e string) int { return len(e) }, func(e string) string { return e })
+	result := seq.ToMultiMap(func(e string) int { return len(e) }, func(e string) string { return e })
 
 	g.Expect(result).To(gomega.HaveLen(5))
 	g.Expect(result[1]).To(gomega.ContainElements([]string{"a", "i"}))
@@ -371,7 +371,7 @@ func TestToMultiMap(t *testing.T) {
 func TestToMap(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 	seq := NewSeqFromSlice([]string{"a", "bb", "ccc", "dddd", "eeeee", "ffff", "ggg", "hh", "i"}, 4)
-	result := ToMap[int, string, string](seq,
+	result := seq.ToMap(
 		func(e string) int { return len(e) },
 		func(e string) string { return e },
 		func(k int, v1 string, v2 string) string {

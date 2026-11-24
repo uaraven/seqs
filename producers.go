@@ -4,7 +4,7 @@
 package seqs
 
 import (
-	"golang.org/x/exp/constraints"
+	"cmp"
 	"sync/atomic"
 )
 
@@ -64,7 +64,7 @@ func NewChannelProducer[T any](source chan T) Producer[T] {
 	}
 }
 
-func NewOrderedComparator[T constraints.Ordered](less func(t1, t2 T) bool) Comparator[T] {
+func NewOrderedComparator[T cmp.Ordered](less func(t1, t2 T) bool) Comparator[T] {
 	return func(t1, t2 T) int {
 		if less(t1, t2) {
 			return -1

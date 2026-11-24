@@ -1,8 +1,12 @@
-# seqs
+# seqs (v2)
+
+```
+go get github.com/uaraven/seqs/v2
+```
 
 The sequence processing library. Provides capabilities similar to that of Java Streams.
 
-Sequences are implemented using generics and require Go 1.19 or later.
+Sequences are implemented using generics and require Go 1.27 or later (generic methods are used).
 
 `Seq[T]` is a sequence of elements of type `T` that supports sequential and parallel aggregate operations.
 
@@ -49,31 +53,25 @@ Terminal operations:
  - AnyMatch
 
 
-As Go doesn't support declaring new generic types on a method of generic interface, some of the sequence
-operations are implemented as a separate functions and not as methods of `Seq` interface. 
-
-For example in Java you can have 
-```java
- interface Seq<T> {
-  <R> Seq<R> map(Function<T,R> mapper);
-}
-```
-you can't do that in Go, so Map is implemented as this:
+`Seq[T]` and `Option[T]` are concrete types, so operations that introduce a new type parameter (`Map`, `FlatMap`,
+`Accumulate`, `ToMap`, `ToMultiMap`, `Option.Map`, `Option.FlatMap`, `Option.Fold`) are ordinary generic methods
+and can be chained:
 ```go
- type Seq[T any] interface {}
-
- func Map[T any, R any](source Seq[T], func mapper(t T) R) Seq[R] {...}
-```
-Using it becomes somewhat cumbersome, you'll have to write it as follows
-```go
-    s := SeqOf(1,2,3,4,5)
-    mapped := Map[int, string](s.Filter(func(t int) {
-      return t % 2 == 0
-    }), func(t int) string {
-      return strconv.itoa(t)
-    })
-    s = mapped.ToSlice()
+    s := SeqOf(1, 2, 3, 4, 5).
+        Filter(func(t int) bool { return t%2 == 0 }).
+        Map(func(t int) string { return strconv.Itoa(t) }).
+        ToSlice()
 ```
 
-Note that Map function is still lazy and still supports both parallel and sequential sequences. It is just a bit more
-awkward to use, because you can't use chained calls with it.
+Map is lazy and supports both parallel and sequential sequences.
+
+## Migrating from v1
+
+ - Import path is `github.com/uaraven/seqs/v2`.
+ - `Seq` is a struct instead of an interface; `ProducerSeq` is gone. The zero value of `Seq` is an empty sequence
+   (use `Seq[T]{}` instead of `nil` in `FlatMap` mappers).
+ - `Option` is a struct instead of an interface; the `Some` and `None` types are gone.
+ - `Map(seq, f)` → `seq.Map(f)`, `FlatMap(seq, f)` → `seq.FlatMap(f)`, `Accumulate(seq, init, f)` →
+   `seq.Accumulate(init, f)`, `ToMap(seq, ...)` → `seq.ToMap(...)`, `ToMultiMap(seq, ...)` → `seq.ToMultiMap(...)`.
+ - `MapOption(o, f)` → `o.Map(f)`, `FlatMapOption(o, f)` → `o.FlatMap(f)`, `ApplyOption(o, f, g)` → `o.Fold(f, g)`.
+ - `golang.org/x/exp` is no longer a dependency.

@@ -4,8 +4,8 @@
 package seqs
 
 // EmptySeq creates a new sequence that has no elements
-func EmptySeq[T any]() *ProducerSeq[T] {
-	return &ProducerSeq[T]{
+func EmptySeq[T any]() Seq[T] {
+	return Seq[T]{
 		producer: func() Option[T] {
 			return NoneOf[T]()
 		},
@@ -14,27 +14,27 @@ func EmptySeq[T any]() *ProducerSeq[T] {
 }
 
 // SeqOf returns a sequential Seq of provided values
-func SeqOf[T any](values ...T) *ProducerSeq[T] {
+func SeqOf[T any](values ...T) Seq[T] {
 	return NewSeq(NewSliceProducer(values))
 }
 
 // NewSeq creates a new sequence that executes operations sequentially
-func NewSeq[T any](producer Producer[T]) *ProducerSeq[T] {
-	return &ProducerSeq[T]{producer: producer, parallelism: 1}
+func NewSeq[T any](producer Producer[T]) Seq[T] {
+	return Seq[T]{producer: producer, parallelism: 1}
 }
 
 // NewSeqFromSlice creates a new sequence from the given slice
 //
 // If optional parallelism value is provided, and it is higher than 1, then the created Seq will perform
 // operations in parallel.
-func NewSeqFromSlice[T any](source []T, parallelism ...int) *ProducerSeq[T] {
+func NewSeqFromSlice[T any](source []T, parallelism ...int) Seq[T] {
 	if len(parallelism) == 0 {
 		parallelism = []int{1}
 	}
 	return NewParallelSeq(NewSliceProducer(source), parallelism...)
 }
 
-func NewSeqFromMapKeys[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[K] {
+func NewSeqFromMapKeys[K comparable, V any](source map[K]V, parallelism ...int) Seq[K] {
 	if len(parallelism) == 0 {
 		parallelism = []int{1}
 	}
@@ -48,7 +48,7 @@ func NewSeqFromMapKeys[K comparable, V any](source map[K]V, parallelism ...int) 
 	return NewParallelSeq(NewChannelProducer(keyChan), parallelism...)
 }
 
-func NewSeqFromMapValues[K comparable, V any](source map[K]V, parallelism ...int) *ProducerSeq[V] {
+func NewSeqFromMapValues[K comparable, V any](source map[K]V, parallelism ...int) Seq[V] {
 	if len(parallelism) == 0 {
 		parallelism = []int{1}
 	}
