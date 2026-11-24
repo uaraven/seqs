@@ -53,14 +53,11 @@ func NewSliceProducer[T any](data []T) Producer[T] {
 // This producer will block if channel is not ready
 func NewChannelProducer[T any](source chan T) Producer[T] {
 	return func() Option[T] {
-		select {
-		case data, ok := <-source:
-			if !ok {
-				return NoneOf[T]()
-			} else {
-				return SomeOf(data)
-			}
+		data, ok := <-source
+		if !ok {
+			return NoneOf[T]()
 		}
+		return SomeOf(data)
 	}
 }
 

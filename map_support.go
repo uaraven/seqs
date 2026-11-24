@@ -6,7 +6,7 @@ package seqs
 import "sync"
 
 func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
-	return NewParallelSeq[U](
+	return NewParallelSeq(
 		func() Option[U] {
 			v := input.Next()
 			return v.Map(mapper)

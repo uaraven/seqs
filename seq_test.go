@@ -6,7 +6,7 @@ package seqs
 import (
 	"github.com/onsi/gomega"
 	"runtime"
-	"sort"
+	"slices"
 	"testing"
 )
 
@@ -20,12 +20,10 @@ func TestSliceFilter(t *testing.T) {
 	})
 	result := nseq.ToSlice()
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i] < result[j]
-	})
+	slices.Sort(result)
 
 	expected := make([]int, 0)
-	for i := 0; i < len(slice); i++ {
+	for i := range len(slice) {
 		if i%2 == 0 {
 			expected = append(expected, i)
 		}
@@ -44,12 +42,10 @@ func TestSliceParallelFilter(t *testing.T) {
 	})
 	result := nseq.ToSlice()
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i] < result[j]
-	})
+	slices.Sort(result)
 
 	expected := make([]int, 0)
-	for i := 0; i < len(slice); i++ {
+	for i := range len(slice) {
 		if i%2 == 0 {
 			expected = append(expected, i)
 		}
@@ -62,7 +58,7 @@ func TestMap(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
 	data := makeSlice(1000)
-	seq := NewParallelSeq[int](NewSliceProducer(data), runtime.NumCPU())
+	seq := NewParallelSeq(NewSliceProducer(data), runtime.NumCPU())
 	mapped := seq.Map(func(t int) int {
 		return t * 2
 	}).ToSortedSlice(func(t1 int, t2 int) int {
@@ -70,7 +66,7 @@ func TestMap(t *testing.T) {
 	})
 
 	expected := make([]int, len(data))
-	for i := 0; i < len(data); i++ {
+	for i := range len(data) {
 		expected[i] = data[i] * 2
 	}
 
@@ -86,9 +82,9 @@ func TestFlatMap(t *testing.T) {
 		{7, 8},
 		{9},
 	}
-	seq := NewSeq[[]int](NewSliceProducer(superSlice))
+	seq := NewSeq(NewSliceProducer(superSlice))
 	flatMap := seq.FlatMap(func(t []int) Seq[int] {
-		return NewSeq[int](NewSliceProducer[int](t))
+		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSlice()
 	g.Expect(result).To(gomega.BeEquivalentTo([]int{
@@ -106,12 +102,12 @@ func TestFlatMapWithNilMap(t *testing.T) {
 		{},
 		{9},
 	}
-	seq := NewSeq[[]int](NewSliceProducer(superSlice))
+	seq := NewSeq(NewSliceProducer(superSlice))
 	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		if len(t) == 0 {
 			return Seq[int]{}
 		}
-		return NewSeq[int](NewSliceProducer[int](t))
+		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSlice()
 	g.Expect(result).To(gomega.BeEquivalentTo([]int{
@@ -128,9 +124,9 @@ func TestParallelFlatMap(t *testing.T) {
 		{7, 8},
 		{9},
 	}
-	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
+	seq := NewParallelSeq(NewSliceProducer(superSlice), 4)
 	flatMap := seq.FlatMap(func(t []int) Seq[int] {
-		return NewSeq[int](NewSliceProducer[int](t))
+		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
 		return t1 - t2
@@ -150,12 +146,12 @@ func TestParallelFlatMapWithNilMap(t *testing.T) {
 		{},
 		{9},
 	}
-	seq := NewParallelSeq[[]int](NewSliceProducer(superSlice), 4)
+	seq := NewParallelSeq(NewSliceProducer(superSlice), 4)
 	flatMap := seq.FlatMap(func(t []int) Seq[int] {
 		if len(t) == 0 {
 			return Seq[int]{}
 		}
-		return NewSeq[int](NewSliceProducer[int](t))
+		return NewSeq(NewSliceProducer(t))
 	})
 	result := flatMap.ToSortedSlice(func(t1 int, t2 int) int {
 		return t1 - t2
@@ -425,7 +421,7 @@ func TestProducerSeq_AllMatch(t *testing.T) {
 
 func makeSlice(n int) []int {
 	slice := make([]int, n)
-	for i := 0; i < len(slice); i++ {
+	for i := range len(slice) {
 		slice[i] = i
 	}
 	return slice
@@ -436,9 +432,9 @@ func makeSlice(n int) []int {
 //		micros := int64(0)
 //
 //		data := makeSlice(10000)
-//		for i := 0; i < 10; i++ {
+//		for i := range 10 {
 //			start := time.Now()
-//			seq := NewSeq[int](NewSliceProducer(data))
+//			seq := NewSeq(NewSliceProducer(data))
 //			Map[int, int](seq, func(t int) int {
 //				time.Sleep(time.Microsecond)
 //				return t * 2
@@ -454,9 +450,9 @@ func makeSlice(n int) []int {
 //		micros := int64(0)
 //
 //		data := makeSlice(10000)
-//		for i := 0; i < 10; i++ {
+//		for i := range 10 {
 //			start := time.Now()
-//			seq := NewParallelSeq[int](NewSliceProducer(data), 4)
+//			seq := NewParallelSeq(NewSliceProducer(data), 4)
 //			Map[int, int](seq, func(t int) int {
 //				time.Sleep(time.Microsecond)
 //				return t * 2
