@@ -15,7 +15,9 @@ import (
 //	initial - the initial value of the accumulator
 //	reducer - a function that takes the current value of the accumulator and an element of the sequence and returns the new value of the accumulator. Reducer must not panic. If reducer panics, the first panic will be re-raised to the caller
 //
-// Initial value of the accumulator is passed as an argument
+// # Initial value of the accumulator is passed as an argument
+//
+// Note: almost all of the time, you should use Fold instead of Accumulate. Accumulate is provided for backwards compatibility only
 func (input Seq[T]) Accumulate[R any](initial R, reducer func(a R, b T) R) R {
 	var mtx sync.Mutex
 	acc := initial
