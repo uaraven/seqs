@@ -13,7 +13,7 @@ var accumulators = []struct {
 	name string
 	run  func(s Seq[int], reducer func(int, int) int) int
 }{
-	{"mutex", func(s Seq[int], r func(int, int) int) int { return s.Accumulate(0, r) }},
+	{"mutex", func(s Seq[int], r func(int, int) int) int { return s.Reduce(r) }},
 }
 
 var benchSink int
