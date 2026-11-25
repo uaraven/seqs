@@ -169,7 +169,7 @@ func (t Seq[T]) Skip(count int64) Seq[T] {
 					mtx.Unlock()
 					return t.Next()
 				}
-				for i := int64(0); i < count; i++ {
+				for range count {
 					v := t.Next()
 					if !v.IsPresent() {
 						skipped.Store(true)
@@ -191,9 +191,7 @@ func (t Seq[T]) Reduce(reducer func(a T, b T) T) T {
 
 	var wg sync.WaitGroup
 	for i := 0; i < t.Parallelism(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var v T
 			vopt := t.Next()
 			if vopt.IsPresent() {
@@ -207,21 +205,19 @@ func (t Seq[T]) Reduce(reducer func(a T, b T) T) T {
 				u = t.Next()
 			}
 			output <- v
-		}()
+		})
 	}
 
 	// collector
 	var cwg sync.WaitGroup
-	cwg.Add(1)
 	var result T
-	go func() {
+	cwg.Go(func() {
 		v := <-output
 		for u := range output {
 			v = reducer(v, u)
 		}
 		result = v
-		cwg.Done()
-	}()
+	})
 
 	wg.Wait()
 	close(output)

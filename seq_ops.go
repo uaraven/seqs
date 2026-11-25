@@ -5,38 +5,47 @@ package seqs
 
 import (
 	"sync"
-	"sync/atomic"
 )
 
 // Accumulate reduces a sequence to a single value, combining each element of the sequence with a previous value
 // of the accumulator
 //
+// Arguments:
+//
+//	initial - the initial value of the accumulator
+//	reducer - a function that takes the current value of the accumulator and an element of the sequence and returns the new value of the accumulator. Reducer must not panic. If reducer panics, the first panic will be re-raised to the caller
+//
 // Initial value of the accumulator is passed as an argument
 func (input Seq[T]) Accumulate[R any](initial R, reducer func(a R, b T) R) R {
-	output := make(chan T)
-
-	var acc atomic.Value
-	acc.Store(initial)
+	var mtx sync.Mutex
+	acc := initial
 	var wg sync.WaitGroup
-	for i := 0; i < input.Parallelism(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			v := input.Next()
-			for v.IsPresent() {
-				for {
-					accumValue := acc.Load()
-					if acc.CompareAndSwap(accumValue, reducer(accumValue.(R), v.Value())) {
-						break
-					}
+	var workerPanic any
+	var panicOnce sync.Once
+
+	step := func(v T) {
+		mtx.Lock()
+		defer mtx.Unlock()
+		acc = reducer(acc, v)
+	}
+
+	for range input.Parallelism() {
+		wg.Go(func() {
+			defer func() {
+				if r := recover(); r != nil {
+					panicOnce.Do(func() { workerPanic = r }) // keep the first panic; several workers may panic at once
 				}
-				v = input.Next()
+			}()
+			for v := input.Next(); v.IsPresent(); v = input.Next() {
+				step(v.Value())
 			}
-		}()
+		})
 	}
 	wg.Wait()
-	close(output)
-	return acc.Load().(R)
+	if workerPanic != nil {
+		panic(workerPanic)
+	}
+	return acc
 }
 
 // Map returns a Seq consisting of the results of applying the given mapping function to the elements for the provided input sequence
