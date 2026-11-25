@@ -3,7 +3,10 @@
 
 package seqs
 
-import "sync"
+import (
+	"runtime"
+	"sync"
+)
 
 func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	return NewParallelSeq(
@@ -14,46 +17,60 @@ func sequentialMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
 	)
 }
 
-func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
+// lazyWorkers returns a producer that starts n worker goroutines on the first call and hands
+// their results to the consumer.
+//
+// Each worker calls work, which pulls from the upstream and passes results to emit. emit returns
+// false when the consumer has been abandoned, and work must then return.
+//
+// There is no Close API, so abandonment is detected by garbage collection: once the returned
+// producer is unreachable, the workers are told to stop and the upstream is no longer read.
+func lazyWorkers[U any](n int, work func(emit func(U) bool)) Producer[U] {
+	type state struct{ once sync.Once }
+	st := &state{}
 	output := make(chan U)
-	allDone := make(chan bool)
+	done := make(chan struct{})
+	// The cleanup must not capture st (or anything referencing it), otherwise it never runs.
+	runtime.AddCleanup(st, func(d chan struct{}) { close(d) }, done)
 
-	var wg sync.WaitGroup
-	for i := 0; i < input.Parallelism(); i++ {
-		wg.Add(1)
+	emit := func(u U) bool {
+		select {
+		case output <- u:
+			return true
+		case <-done:
+			return false
+		}
+	}
+	start := func() {
+		var wg sync.WaitGroup
+		for range n {
+			wg.Go(func() { work(emit) })
+		}
 		go func() {
-			v := input.Next()
-			for v.IsPresent() {
-				u := mapper(v.Value())
-				output <- u
-				v = input.Next()
-			}
-			wg.Done()
+			wg.Wait()
+			close(output)
 		}()
 	}
 
-	go func() {
-		wg.Wait()
-		allDone <- true
-	}()
+	return func() Option[U] {
+		st.once.Do(start)
+		u, ok := <-output
+		if !ok {
+			return NoneOf[U]()
+		}
+		return SomeOf(u)
+	}
+}
 
-	return NewParallelSeq(
-		func() Option[U] {
-			for {
-				select {
-				case <-allDone:
-					close(output)
-					return NoneOf[U]()
-				case u, ok := <-output:
-					if ok {
-						return SomeOf(u)
-					} else {
-						return NoneOf[U]()
-					}
-				}
+func parallelMap[T any, U any](input Seq[T], mapper func(T) U) Seq[U] {
+	n := input.Parallelism()
+	return NewParallelSeq(lazyWorkers(n, func(emit func(U) bool) {
+		for v := input.Next(); v.IsPresent(); v = input.Next() {
+			if !emit(mapper(v.Value())) {
+				return
 			}
-		}, input.Parallelism(),
-	)
+		}
+	}), n)
 }
 
 func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
@@ -85,47 +102,18 @@ func sequentialFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U]
 }
 
 func parallelFlatMap[T any, U any](input Seq[T], mapper func(T) Seq[U]) Seq[U] {
-	output := make(chan U)
-	allDone := make(chan bool)
-
-	var wg sync.WaitGroup
-	for i := 0; i < input.Parallelism(); i++ {
-		wg.Add(1)
-		go func() {
-			v := input.Next()
-			for v.IsPresent() {
-				u := mapper(v.Value())
-				if !u.isZero() {
-					u1 := u.Next()
-					for u1.IsPresent() {
-						output <- u1.Value()
-						u1 = u.Next()
-					}
-				}
-				v = input.Next()
+	n := input.Parallelism()
+	return NewParallelSeq(lazyWorkers(n, func(emit func(U) bool) {
+		for v := input.Next(); v.IsPresent(); v = input.Next() {
+			u := mapper(v.Value())
+			if u.isZero() {
+				continue
 			}
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		allDone <- true
-	}()
-
-	return NewParallelSeq(func() Option[U] {
-		for {
-			select {
-			case <-allDone:
-				close(output)
-				return NoneOf[U]()
-			case u, ok := <-output:
-				if ok {
-					return SomeOf(u)
-				} else {
-					return NoneOf[U]()
+			for u1 := u.Next(); u1.IsPresent(); u1 = u.Next() {
+				if !emit(u1.Value()) {
+					return
 				}
 			}
 		}
-	}, input.Parallelism())
+	}), n)
 }

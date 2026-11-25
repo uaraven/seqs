@@ -587,3 +587,33 @@ func makeSlice(n int) []int {
 //	testSequential()
 //	testParallel()
 // }
+
+func TestParallelMap_LazyStart(t *testing.T) {
+	var calls atomic.Int64
+	s := NewSeqFromSlice([]int{1, 2, 3, 4}, 4)
+	m := s.Map(func(i int) int { calls.Add(1); return i })
+	f := NewSeqFromSlice([]int{1, 2}, 4).FlatMap(func(i int) Seq[int] { calls.Add(1); return NewSeqFromSlice([]int{i}, 1) })
+	time.Sleep(50 * time.Millisecond)
+	if calls.Load() != 0 {
+		t.Fatalf("mapper called before first Next: %d", calls.Load())
+	}
+	m.Next()
+	f.Next()
+}
+
+func TestParallelMap_AbandonedDoesNotLeak(t *testing.T) {
+	before := runtime.NumGoroutine()
+	for i := 0; i < 20; i++ {
+		data := make([]int, 1000)
+		NewSeqFromSlice(data, 8).Map(func(i int) int { return i }).Next()
+		NewSeqFromSlice(data, 8).FlatMap(func(i int) Seq[int] { return NewSeqFromSlice([]int{i, i}, 1) }).Next()
+	}
+	for i := 0; i < 100; i++ {
+		runtime.GC()
+		time.Sleep(20 * time.Millisecond)
+		if runtime.NumGoroutine() <= before+2 {
+			return
+		}
+	}
+	t.Fatalf("goroutines leaked: before=%d after=%d", before, runtime.NumGoroutine())
+}
